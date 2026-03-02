@@ -167,7 +167,7 @@
             transform: scale(0.95);
         }
 
-        /* Телефон - новая кнопка */
+        /* Телефон */
         #phone-btn {
             position: absolute;
             top: 10px;
@@ -318,7 +318,7 @@
             display: none;
         }
 
-        /* ТЕЛЕФОН - новое меню */
+        /* ТЕЛЕФОН */
         #phone-menu {
             position: absolute;
             top: 50%;
@@ -428,7 +428,7 @@
             transform: scale(0.98);
         }
 
-        /* Магазин оружия (теперь внутри телефона) */
+        /* Магазин оружия */
         .weapon-item {
             display: flex;
             justify-content: space-between;
@@ -653,6 +653,30 @@
         .camera-active {
             background: rgba(255,255,0,0.05);
         }
+
+        /* Маркеры заданий */
+        .job-marker {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #ff00ff;
+            border-radius: 50%;
+            box-shadow: 0 0 20px #ff00ff;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 100;
+            animation: pulse 1s infinite;
+        }
+
+        .job-marker.passenger {
+            background: #00ffff;
+            box-shadow: 0 0 20px #00ffff;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            50% { transform: translate(-50%, -50%) scale(1.5); opacity: 0.7; }
+        }
     </style>
 </head>
 <body>
@@ -698,7 +722,7 @@
             <button onclick="toggleMPMenu()">❌</button>
         </div>
 
-        <!-- ТЕЛЕФОН (новый интерфейс) -->
+        <!-- ТЕЛЕФОН -->
         <div id="phone-menu">
             <div class="phone-title">📱 СМАРТФОН</div>
             
@@ -716,28 +740,28 @@
             <div id="phone-jobs" class="phone-content">
                 <div class="job-item">
                     <div class="job-title">🚖 ТАКСИСТ</div>
-                    <div class="job-desc">Развози пассажиров по городу. Нужна машина.</div>
+                    <div class="job-desc">Подбери клиента (голубая метка) и отвези к фиолетовой метке. Нужна машина.</div>
                     <div class="job-reward">💰 +300$ за поездку</div>
                     <div class="job-btn" onclick="startJob('taxi')">НАЧАТЬ РАБОТУ</div>
                 </div>
                 
                 <div class="job-item">
-                    <div class="job-title">🚛 ДАЛЬНОБОЙЩИК</div>
-                    <div class="job-desc">Перевози грузы между районами.</div>
+                    <div class="job-title">🚚 ДАЛЬНОБОЙЩИК</div>
+                    <div class="job-desc">Доставь груз к фиолетовой метке. Нужна машина.</div>
                     <div class="job-reward">💰 +500$ за рейс</div>
                     <div class="job-btn" onclick="startJob('trucker')">НАЧАТЬ РАБОТУ</div>
                 </div>
                 
                 <div class="job-item">
                     <div class="job-title">🔧 МЕХАНИК</div>
-                    <div class="job-desc">Чини сломанные машины на дорогах.</div>
-                    <div class="job-reward">💰 +200$ за машину</div>
+                    <div class="job-desc">Почини машину в фиолетовой метке. Можно пешком.</div>
+                    <div class="job-reward">💰 +200$ за ремонт</div>
                     <div class="job-btn" onclick="startJob('mechanic')">НАЧАТЬ РАБОТУ</div>
                 </div>
                 
                 <div class="job-item">
                     <div class="job-title">🛒 КУРЬЕР</div>
-                    <div class="job-desc">Доставляй посылки пешком или на машине.</div>
+                    <div class="job-desc">Доставь посылку к фиолетовой метке. Можно пешком.</div>
                     <div class="job-reward">💰 +150$ за доставку</div>
                     <div class="job-btn" onclick="startJob('courier')">НАЧАТЬ РАБОТУ</div>
                 </div>
@@ -827,6 +851,9 @@
         <div id="joystick-container">
             <div id="joystick"></div>
         </div>
+
+        <!-- Контейнер для маркеров заданий -->
+        <div id="job-markers" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:50;"></div>
 
         <div id="controls">
             <div>
@@ -1139,81 +1166,190 @@
         
         // ========== РАБОТА ==========
         let currentJob = null;
-        let jobProgress = 0;
-        let jobTarget = null;
+        let jobStage = 0; // 0 - ждем клиента, 1 - ждем доставку
+        let jobPickup = null;
+        let jobDropoff = null;
+        let jobMarkers = [];
+        
+        function updateJobMarkers() {
+            // Удаляем старые маркеры
+            jobMarkers.forEach(m => m.remove());
+            jobMarkers = [];
+            
+            const markersDiv = document.getElementById('job-markers');
+            if(!markersDiv) return;
+            
+            if(currentJob === 'taxi') {
+                if(jobStage === 0 && jobPickup) {
+                    const marker = document.createElement('div');
+                    marker.className = 'job-marker passenger';
+                    marker.style.position = 'absolute';
+                    
+                    const screenPos = worldToScreen(jobPickup.x, jobPickup.z);
+                    if(screenPos) {
+                        marker.style.left = screenPos.x + 'px';
+                        marker.style.top = screenPos.y + 'px';
+                        markersDiv.appendChild(marker);
+                        jobMarkers.push(marker);
+                    }
+                } else if(jobStage === 1 && jobDropoff) {
+                    const marker = document.createElement('div');
+                    marker.className = 'job-marker';
+                    marker.style.position = 'absolute';
+                    
+                    const screenPos = worldToScreen(jobDropoff.x, jobDropoff.z);
+                    if(screenPos) {
+                        marker.style.left = screenPos.x + 'px';
+                        marker.style.top = screenPos.y + 'px';
+                        markersDiv.appendChild(marker);
+                        jobMarkers.push(marker);
+                    }
+                }
+            } else if(currentJob && jobDropoff) {
+                const marker = document.createElement('div');
+                marker.className = 'job-marker';
+                marker.style.position = 'absolute';
+                
+                const screenPos = worldToScreen(jobDropoff.x, jobDropoff.z);
+                if(screenPos) {
+                    marker.style.left = screenPos.x + 'px';
+                    marker.style.top = screenPos.y + 'px';
+                    markersDiv.appendChild(marker);
+                    jobMarkers.push(marker);
+                }
+            }
+        }
+        
+        function worldToScreen(x, z) {
+            if(!camera) return null;
+            
+            const vector = new THREE.Vector3(x, 0, z);
+            vector.project(camera);
+            
+            const widthHalf = window.innerWidth / 2;
+            const heightHalf = window.innerHeight / 2;
+            
+            const screenX = (vector.x * widthHalf) + widthHalf;
+            const screenY = -(vector.y * heightHalf) + heightHalf;
+            
+            // Проверяем, находится ли точка перед камерой
+            if(vector.z > 1) return null;
+            
+            return { x: screenX, y: screenY };
+        }
         
         window.startJob = function(jobType) {
-            if(!inCar && (jobType === 'taxi' || jobType === 'trucker')) {
-                alert('Для этой работы нужна машина!');
+            const active = inCar ? currentCar : player;
+            if(!active) return;
+            
+            if((jobType === 'taxi' || jobType === 'trucker') && !inCar) {
+                alert('🚫 Для этой работы нужна машина!');
                 return;
             }
             
             currentJob = jobType;
-            jobProgress = 0;
+            jobStage = 0;
             
             if(jobType === 'taxi') {
-                jobTarget = {
-                    x: player.position.x + (Math.random() - 0.5) * 200,
-                    z: player.position.z + (Math.random() - 0.5) * 200
+                // Такси: сначала подобрать клиента, потом отвезти
+                jobPickup = {
+                    x: active.position.x + (Math.random() - 0.5) * 200,
+                    z: active.position.z + (Math.random() - 0.5) * 200
                 };
-                alert('🚖 Забери пассажира и отвези его к маркеру!');
-            } else if(jobType === 'trucker') {
-                jobTarget = {
-                    x: player.position.x + (Math.random() - 0.5) * 300,
-                    z: player.position.z + (Math.random() - 0.5) * 300
+                jobDropoff = null;
+                alert('🚖 Найди клиента (голубая метка) и подбери его!');
+            } else {
+                // Остальные работы: сразу точка доставки
+                jobDropoff = {
+                    x: active.position.x + (Math.random() - 0.5) * 200,
+                    z: active.position.z + (Math.random() - 0.5) * 200
                 };
-                alert('🚛 Забери груз и доставь на склад!');
-            } else if(jobType === 'mechanic') {
-                jobTarget = {
-                    x: player.position.x + (Math.random() - 0.5) * 150,
-                    z: player.position.z + (Math.random() - 0.5) * 150
-                };
-                alert('🔧 Найди сломанную машину и почини её!');
-            } else if(jobType === 'courier') {
-                jobTarget = {
-                    x: player.position.x + (Math.random() - 0.5) * 100,
-                    z: player.position.z + (Math.random() - 0.5) * 100
-                };
-                alert('🛒 Забери посылку и доставь клиенту!');
+                jobPickup = null;
+                
+                if(jobType === 'trucker') alert('🚚 Доставь груз к фиолетовой метке!');
+                else if(jobType === 'mechanic') alert('🔧 Почини машину в фиолетовой метке!');
+                else if(jobType === 'courier') alert('🛒 Доставь посылку к фиолетовой метке!');
             }
             
             closePhone();
         };
         
         function updateJob() {
-            if(!currentJob) return;
-            
             const active = inCar ? currentCar : player;
-            if(!active) return;
+            if(!active || !currentJob) return;
             
-            if(jobTarget && active.position.distanceTo(new THREE.Vector3(jobTarget.x, 0, jobTarget.z)) < 15) {
-                // Задание выполнено
-                let reward = 0;
-                
-                if(currentJob === 'taxi') reward = 300;
-                else if(currentJob === 'trucker') reward = 500;
-                else if(currentJob === 'mechanic') reward = 200;
-                else if(currentJob === 'courier') reward = 150;
-                
-                money += reward;
-                document.getElementById('money').innerText = money;
-                playSound('cash');
-                
-                alert(`✅ Работа выполнена! +${reward}$`);
-                
-                // Новое задание
-                if(Math.random() < 0.7) {
-                    jobTarget = {
-                        x: active.position.x + (Math.random() - 0.5) * 200,
-                        z: active.position.z + (Math.random() - 0.5) * 200
-                    };
-                    alert('📦 Следующий заказ!');
-                } else {
-                    currentJob = null;
-                    jobTarget = null;
-                    alert('💼 Рабочий день окончен!');
+            if(currentJob === 'taxi') {
+                if(jobStage === 0 && jobPickup) {
+                    // Ищем клиента
+                    if(active.position.distanceTo(new THREE.Vector3(jobPickup.x, 0, jobPickup.z)) < 15) {
+                        jobStage = 1;
+                        jobDropoff = {
+                            x: active.position.x + (Math.random() - 0.5) * 200,
+                            z: active.position.z + (Math.random() - 0.5) * 200
+                        };
+                        jobPickup = null;
+                        alert('👤 Клиент в машине! Вези его к фиолетовой метке!');
+                        playSound('cash');
+                    }
+                } else if(jobStage === 1 && jobDropoff) {
+                    // Везем клиента
+                    if(active.position.distanceTo(new THREE.Vector3(jobDropoff.x, 0, jobDropoff.z)) < 15) {
+                        money += 300;
+                        document.getElementById('money').innerText = money;
+                        playSound('cash');
+                        alert('✅ Поездка завершена! +300$');
+                        
+                        // Новый клиент или конец работы
+                        if(Math.random() < 0.7) {
+                            jobStage = 0;
+                            jobPickup = {
+                                x: active.position.x + (Math.random() - 0.5) * 200,
+                                z: active.position.z + (Math.random() - 0.5) * 200
+                            };
+                            jobDropoff = null;
+                            alert('🚖 Новый клиент! Найди голубую метку!');
+                        } else {
+                            currentJob = null;
+                            jobPickup = null;
+                            jobDropoff = null;
+                            alert('💼 Рабочий день окончен!');
+                        }
+                    }
+                }
+            } else if(currentJob && jobDropoff) {
+                // Остальные работы
+                if(active.position.distanceTo(new THREE.Vector3(jobDropoff.x, 0, jobDropoff.z)) < 15) {
+                    let reward = 0;
+                    
+                    if(currentJob === 'trucker') reward = 500;
+                    else if(currentJob === 'mechanic') reward = 200;
+                    else if(currentJob === 'courier') reward = 150;
+                    
+                    money += reward;
+                    document.getElementById('money').innerText = money;
+                    playSound('cash');
+                    
+                    if(currentJob === 'trucker') alert(`✅ Груз доставлен! +${reward}$`);
+                    else if(currentJob === 'mechanic') alert(`✅ Машина починена! +${reward}$`);
+                    else if(currentJob === 'courier') alert(`✅ Посылка доставлена! +${reward}$`);
+                    
+                    // Новое задание или конец
+                    if(Math.random() < 0.7) {
+                        jobDropoff = {
+                            x: active.position.x + (Math.random() - 0.5) * 200,
+                            z: active.position.z + (Math.random() - 0.5) * 200
+                        };
+                        alert('📦 Следующий заказ!');
+                    } else {
+                        currentJob = null;
+                        jobDropoff = null;
+                        alert('💼 Рабочий день окончен!');
+                    }
                 }
             }
+            
+            // Обновляем маркеры
+            updateJobMarkers();
         }
         
         // ========== НАСТРОЙКИ ==========
@@ -1351,6 +1487,7 @@
         window.restartAfterArrest = function() {
             document.getElementById('arrest-screen').style.display = 'none';
             
+            // ИСПРАВЛЕНО: теперь деньги отнимаются, а не прибавляются
             money = Math.max(0, money - 200);
             document.getElementById('money').innerText = money;
             
@@ -1400,7 +1537,7 @@
             building.receiveShadow = true;
             group.add(building);
             
-            // Угловые пилястры (на полную высоту)
+            // Угловые пилястры
             const cornerGeo = new THREE.BoxGeometry(1, height, 1);
             const cornerMat = new THREE.MeshLambertMaterial({ color: trimColor });
             const corners = [
@@ -1416,7 +1553,6 @@
             
             // Крыша
             if (Math.random() < 0.6) {
-                // Острая крыша
                 const roof = new THREE.Mesh(
                     new THREE.ConeGeometry(10, 3, 4),
                     new THREE.MeshLambertMaterial({ color: 0xc0392b })
@@ -1426,7 +1562,6 @@
                 roof.castShadow = true;
                 group.add(roof);
                 
-                // Шпиль
                 if (Math.random() > 0.5) {
                     const spire = new THREE.Mesh(
                         new THREE.ConeGeometry(0.5, 1.5, 8),
@@ -1437,7 +1572,6 @@
                     group.add(spire);
                 }
             } else {
-                // Плоская крыша
                 const roof = new THREE.Mesh(
                     new THREE.BoxGeometry(15, 0.5, 15),
                     new THREE.MeshLambertMaterial({ color: 0x7f8c8d })
@@ -1458,14 +1592,13 @@
                 group.add(chimney);
             }
             
-            // Дверь (на земле, не в воздухе)
+            // Дверь
             const doorMat = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
             const door = new THREE.Mesh(new THREE.BoxGeometry(2, 3, 0.5), doorMat);
             door.position.set(0, 1.5, 7.15);
             door.castShadow = true;
             group.add(door);
             
-            // Дверная ручка
             const handle = new THREE.Mesh(
                 new THREE.SphereGeometry(0.15),
                 new THREE.MeshLambertMaterial({ color: 0xf1c40f })
@@ -1474,7 +1607,7 @@
             handle.castShadow = true;
             group.add(handle);
             
-            // ОКНА (исправлено - теперь на правильной высоте)
+            // ОКНА (ИСПРАВЛЕНО - теперь правильно повернуты)
             const windowMat = new THREE.MeshStandardMaterial({ 
                 color: 0x2c3e50,
                 emissive: 0x1a2632,
@@ -1483,111 +1616,106 @@
             
             const frameMat = new THREE.MeshLambertMaterial({ color: trimColor });
             
-            // Окна на первом этаже (всегда)
+            // Окна на первом этаже
             for(let side = 0; side < 4; side++) {
-                // Определяем сторону дома
                 const isFront = (side === 0); // передняя сторона (с дверью)
-                const posZ = side === 0 ? 7.15 : (side === 1 ? -7.15 : 0);
-                const posX = side === 2 ? 7.15 : (side === 3 ? -7.15 : 0);
                 
-                if (posZ !== 0 || posX !== 0) {
-                    // Не ставить окна там где дверь
-                    if (isFront) {
-                        // Окна слева и справа от двери
-                        for(let offset of [-2.5, 2.5]) {
-                            const frame = new THREE.Mesh(
-                                new THREE.BoxGeometry(2.2, 2.2, 0.2),
-                                frameMat
-                            );
-                            
-                            if (posZ !== 0) {
-                                frame.position.set(offset, 2.5, posZ);
-                            } else {
-                                frame.position.set(posX, 2.5, offset);
-                            }
-                            frame.castShadow = true;
-                            group.add(frame);
-                            
-                            const glass = new THREE.Mesh(
-                                new THREE.BoxGeometry(1.8, 1.8, 0.1),
-                                windowMat
-                            );
-                            
-                            if (posZ !== 0) {
-                                glass.position.set(offset, 2.5, posZ + (posZ > 0 ? 0.1 : -0.1));
-                            } else {
-                                glass.position.set(posX + (posX > 0 ? 0.1 : -0.1), 2.5, offset);
-                            }
-                            glass.castShadow = true;
-                            group.add(glass);
-                        }
-                    } else {
-                        // Два окна на других сторонах
-                        for(let offset of [-2.5, 2.5]) {
-                            const frame = new THREE.Mesh(
-                                new THREE.BoxGeometry(2.2, 2.2, 0.2),
-                                frameMat
-                            );
-                            
-                            if (posZ !== 0) {
-                                frame.position.set(offset, 2.5, posZ);
-                            } else {
-                                frame.position.set(posX, 2.5, offset);
-                            }
-                            frame.castShadow = true;
-                            group.add(frame);
-                            
-                            const glass = new THREE.Mesh(
-                                new THREE.BoxGeometry(1.8, 1.8, 0.1),
-                                windowMat
-                            );
-                            
-                            if (posZ !== 0) {
-                                glass.position.set(offset, 2.5, posZ + (posZ > 0 ? 0.1 : -0.1));
-                            } else {
-                                glass.position.set(posX + (posX > 0 ? 0.1 : -0.1), 2.5, offset);
-                            }
-                            glass.castShadow = true;
-                            group.add(glass);
-                        }
+                for(let offset of [-2.5, 2.5]) {
+                    // Создаем раму
+                    const frame = new THREE.Mesh(
+                        new THREE.BoxGeometry(2.2, 2.2, 0.2),
+                        frameMat
+                    );
+                    
+                    // Позиционируем в зависимости от стороны
+                    if(side === 0) { // передняя (z+)
+                        frame.position.set(offset, 2.5, 7.15);
+                        frame.rotation.y = 0;
+                    } else if(side === 1) { // задняя (z-)
+                        frame.position.set(offset, 2.5, -7.15);
+                        frame.rotation.y = 0;
+                    } else if(side === 2) { // правая (x+)
+                        frame.position.set(7.15, 2.5, offset);
+                        frame.rotation.y = Math.PI/2;
+                    } else { // левая (x-)
+                        frame.position.set(-7.15, 2.5, offset);
+                        frame.rotation.y = Math.PI/2;
                     }
+                    
+                    frame.castShadow = true;
+                    group.add(frame);
+                    
+                    // Стекло
+                    const glass = new THREE.Mesh(
+                        new THREE.BoxGeometry(1.8, 1.8, 0.1),
+                        windowMat
+                    );
+                    
+                    if(side === 0) {
+                        glass.position.set(offset, 2.5, 7.25);
+                        glass.rotation.y = 0;
+                    } else if(side === 1) {
+                        glass.position.set(offset, 2.5, -7.25);
+                        glass.rotation.y = 0;
+                    } else if(side === 2) {
+                        glass.position.set(7.25, 2.5, offset);
+                        glass.rotation.y = Math.PI/2;
+                    } else {
+                        glass.position.set(-7.25, 2.5, offset);
+                        glass.rotation.y = Math.PI/2;
+                    }
+                    
+                    glass.castShadow = true;
+                    group.add(glass);
                 }
             }
             
-            // Окна на втором этаже (если дом высокий)
+            // Окна на втором этаже
             if(height > 8) {
                 for(let side = 0; side < 4; side++) {
-                    const posZ = side === 0 ? 7.15 : (side === 1 ? -7.15 : 0);
-                    const posX = side === 2 ? 7.15 : (side === 3 ? -7.15 : 0);
+                    const frame = new THREE.Mesh(
+                        new THREE.BoxGeometry(2.2, 2.2, 0.2),
+                        frameMat
+                    );
                     
-                    if (posZ !== 0 || posX !== 0) {
-                        // Одно окно на втором этаже
-                        const frame = new THREE.Mesh(
-                            new THREE.BoxGeometry(2.2, 2.2, 0.2),
-                            frameMat
-                        );
-                        
-                        if (posZ !== 0) {
-                            frame.position.set(0, 6, posZ);
-                        } else {
-                            frame.position.set(posX, 6, 0);
-                        }
-                        frame.castShadow = true;
-                        group.add(frame);
-                        
-                        const glass = new THREE.Mesh(
-                            new THREE.BoxGeometry(1.8, 1.8, 0.1),
-                            windowMat
-                        );
-                        
-                        if (posZ !== 0) {
-                            glass.position.set(0, 6, posZ + (posZ > 0 ? 0.1 : -0.1));
-                        } else {
-                            glass.position.set(posX + (posX > 0 ? 0.1 : -0.1), 6, 0);
-                        }
-                        glass.castShadow = true;
-                        group.add(glass);
+                    if(side === 0) {
+                        frame.position.set(0, 6, 7.15);
+                        frame.rotation.y = 0;
+                    } else if(side === 1) {
+                        frame.position.set(0, 6, -7.15);
+                        frame.rotation.y = 0;
+                    } else if(side === 2) {
+                        frame.position.set(7.15, 6, 0);
+                        frame.rotation.y = Math.PI/2;
+                    } else {
+                        frame.position.set(-7.15, 6, 0);
+                        frame.rotation.y = Math.PI/2;
                     }
+                    
+                    frame.castShadow = true;
+                    group.add(frame);
+                    
+                    const glass = new THREE.Mesh(
+                        new THREE.BoxGeometry(1.8, 1.8, 0.1),
+                        windowMat
+                    );
+                    
+                    if(side === 0) {
+                        glass.position.set(0, 6, 7.25);
+                        glass.rotation.y = 0;
+                    } else if(side === 1) {
+                        glass.position.set(0, 6, -7.25);
+                        glass.rotation.y = 0;
+                    } else if(side === 2) {
+                        glass.position.set(7.25, 6, 0);
+                        glass.rotation.y = Math.PI/2;
+                    } else {
+                        glass.position.set(-7.25, 6, 0);
+                        glass.rotation.y = Math.PI/2;
+                    }
+                    
+                    glass.castShadow = true;
+                    group.add(glass);
                 }
             }
             
@@ -2685,4 +2813,4 @@
         document.getElementById('startBtn').addEventListener('click', startGame);
     </script>
 </body>
-  </html>
+    </html>
